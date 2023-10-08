@@ -1,13 +1,21 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Security.Cryptography;
+using System.Windows.Forms;
 
-class Program
+namespace Password_Manager
 {
-    static void Main()
+    static class Program
     {
-        
+        [STAThread]
+        static void Main()
+        {
+            Application.EnableVisualStyles();
+            Application.SetCompatibleTextRenderingDefault(false);
+
+            // Create an instance of your main form (PasswordManagerForm in this example)
+            LoginForm mainForm = new LoginForm();
+
+            // Start the application with the main form
+            Application.Run(mainForm);
+        }
     }
 }
