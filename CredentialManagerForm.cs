@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
+using System.Security.Policy;
 using System.Text;
 using System.Windows.Forms;
 
@@ -13,6 +14,7 @@ namespace Password_Manager
     {
         private List<Credential> credentials;
         private string currentUser;
+        private string encryptionKey;
 
         private DataGridView dataGridViewCredentials;
 
@@ -22,17 +24,18 @@ namespace Password_Manager
             public string Username { get; set; }
             public string EncryptedPassword { get; set; }
             public string IV { get; set; }
-            public string Key { get; set; }
             [JsonIgnore]
             public string DecryptedPassword { get; set; } // Store decrypted password for DataGridView
+
         }
 
-        public CredentialManagerForm(string username)
+        public CredentialManagerForm(string username, string key)
         {
             InitializeComponent();
             currentUser = username;
             credentials = new List<Credential>();
-            LoadCredentials();
+            encryptionKey = key;
+            LoadCredentials(key);
         }
 
         private void CredentialManagerForm_Load(object sender, EventArgs e)
@@ -80,15 +83,14 @@ namespace Password_Manager
         {
             var decryptedCredentials = credentials.Select(cred =>
             {
-                var decryptedPassword = DecryptPassword(cred.EncryptedPassword, cred.Key, cred.IV);
+                var decryptedPassword = DecryptPassword(cred.EncryptedPassword, encryptionKey, cred.IV);
                 return new Credential
                 {
                     Platform = cred.Platform,
                     Username = cred.Username,
-                    EncryptedPassword = cred.EncryptedPassword, // Keep the encrypted password
-                    IV = cred.IV, // Keep the IV
-                    Key = cred.Key, // Keep the AES key
-                    DecryptedPassword = decryptedPassword // Set the decrypted password
+                    EncryptedPassword = cred.EncryptedPassword,
+                    IV = cred.IV, 
+                    DecryptedPassword = decryptedPassword
                 };
             }).ToList();
 
@@ -104,7 +106,7 @@ namespace Password_Manager
         }
 
         // Load credentials from a file
-        private void LoadCredentials()
+        private void LoadCredentials(string key)
         {
             string filePath = $"{currentUser}_credentials.json";
             if (File.Exists(filePath))
@@ -121,16 +123,6 @@ namespace Password_Manager
             {
                 aesAlg.GenerateIV();
                 return Convert.ToBase64String(aesAlg.IV);
-            }
-        }
-
-        // Generate an AES key (example)
-        private string GenerateAesKey()
-        {
-            using (AesManaged aesAlg = new AesManaged())
-            {
-                aesAlg.GenerateKey();
-                return Convert.ToBase64String(aesAlg.Key);
             }
         }
 
@@ -194,7 +186,8 @@ namespace Password_Manager
 
             if (!string.IsNullOrEmpty(platform) && !string.IsNullOrEmpty(username) && !string.IsNullOrEmpty(password))
             {
-                string key = GenerateAesKey(); // Generate an AES key
+                int selectedIndex = credentials.Count();
+                string key = encryptionKey;
                 string iv = GenerateAesIV();   // Generate an AES IV
 
                 string encryptedPassword = EncryptPassword(password, key, iv);
@@ -204,8 +197,7 @@ namespace Password_Manager
                     Platform = platform,
                     Username = username,
                     EncryptedPassword = encryptedPassword,
-                    IV = iv, // Store the IV
-                    Key = key // Store the AES key
+                    IV = iv, 
                 };
 
                 credentials.Add(newCredential);

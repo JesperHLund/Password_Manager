@@ -1,4 +1,5 @@
-﻿using Newtonsoft.Json;
+﻿using BCrypt.Net;
+using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -10,7 +11,7 @@ namespace Password_Manager
 {
     public partial class LoginForm : Form
     {
-        private Dictionary<string, (string hashedPassword, string salt)> users;
+        private Dictionary<string, string> users;
 
         public LoginForm()
         {
@@ -28,11 +29,11 @@ namespace Password_Manager
             if (File.Exists("users.json"))
             {
                 string json = File.ReadAllText("users.json");
-                users = JsonConvert.DeserializeObject<Dictionary<string, (string, string)>>(json);
+                users = JsonConvert.DeserializeObject<Dictionary<string, string>>(json);
             }
             else
             {
-                users = new Dictionary<string, (string, string)>();
+                users = new Dictionary<string, string>();
             }
         }
 
@@ -42,48 +43,38 @@ namespace Password_Manager
             File.WriteAllText("users.json", json);
         }
 
-        private (string, string) HashPassword(string password, string salt)
+        private (string, string) encryptPassword(string password)
         {
-            using (var rng = new RNGCryptoServiceProvider())
-            {
-                if (salt == null)
-                {
-                    var saltBytes = new byte[32];
-                    rng.GetBytes(saltBytes);
-                    salt = Convert.ToBase64String(saltBytes);
-                }
+            string salt;
+            //generates a salt with a work factor of 16
+            salt = BCrypt.Net.BCrypt.GenerateSalt(16);
+        
+            var newHashedPassword = BCrypt.Net.BCrypt.HashPassword(password, salt);
 
-                byte[] passwordBytes = Encoding.UTF8.GetBytes(password);
-                byte[] saltedPasswordBytes = new byte[salt.Length + passwordBytes.Length];
-
-                Encoding.UTF8.GetBytes(salt).CopyTo(saltedPasswordBytes, 0);
-                passwordBytes.CopyTo(saltedPasswordBytes, salt.Length);
-
-                using (var sha256 = new SHA256Managed())
-                {
-                    byte[] hashedPasswordBytes = sha256.ComputeHash(saltedPasswordBytes);
-                    return (Convert.ToBase64String(hashedPasswordBytes), salt);
-                }
-            }
+            return (newHashedPassword, salt);
         }
 
+        //Handles authentication of the user by comparing input password with the stored password.
         private bool Authenticate(string username, string password)
         {
             if (users.TryGetValue(username, out var userData))
             {
-                var (hashedPassword, salt) = userData;
-                var (inputHash, _) = HashPassword(password, salt);
-                return hashedPassword == inputHash;
+                //Gets the hashedpassword and salt from the userData Json
+                var hashedPassword = userData;
+
+                //Check if the hashedPassword matches the input password
+                return BCrypt.Net.BCrypt.Verify(password,hashedPassword);
             }
             return false;
         }
 
+        //Creates user using username and password
         private void CreateNewUser(string username, string password)
         {
             if (!users.ContainsKey(username))
             {
-                var (hashedPassword, salt) = HashPassword(password, null);
-                users[username] = (hashedPassword, salt);
+                var (hashedPassword, salt) = encryptPassword(password);
+                users[username] = hashedPassword;
                 SaveUserData();
                 MessageBox.Show("User created successfully.");
             }
@@ -93,6 +84,7 @@ namespace Password_Manager
             }
         }
 
+        //Handels loginButton click event
         private void loginButton_Click(object sender, EventArgs e)
         {
             string username = usernameTextBox.Text;
@@ -100,13 +92,24 @@ namespace Password_Manager
 
             if (Authenticate(username, password))
             {
-                // Close the login form
-                this.Hide();
 
-                // Open the CredentialManagerForm
-                CredentialManagerForm credentialManagerForm = new CredentialManagerForm(username);
-                credentialManagerForm.ShowDialog(); // ShowDialog() ensures the new form is modal
-                this.Close();
+                //Sets a combinedSecret of password and username
+                string combinedSecret = password + username;
+
+                // Derive a consistent user-specific key
+                using (var pbkdf2 = new Rfc2898DeriveBytes(combinedSecret, new byte[16], 600000, HashAlgorithmName.SHA256))
+                {
+                    byte[] keyBytes = pbkdf2.GetBytes(32); // 256 bits key
+                    string key = Convert.ToBase64String(keyBytes);
+
+                    // Close the login form
+                    this.Hide();
+
+                    // Open the CredentialManagerForm with the derived key
+                    CredentialManagerForm credentialManagerForm = new CredentialManagerForm(username, key);
+                    credentialManagerForm.ShowDialog();
+                    this.Close();
+                }
             }
             else
             {
