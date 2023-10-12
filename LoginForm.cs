@@ -101,7 +101,7 @@ namespace Password_Manager
                 {
                     byte[] keyBytes = pbkdf2.GetBytes(32); // 256 bits key
                     string key = Convert.ToBase64String(keyBytes);
-
+                    
                     // Close the login form
                     this.Hide();
 
