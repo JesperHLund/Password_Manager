@@ -21,7 +21,7 @@ when you are done simply close the application.
 The security could most certainly be better with a cloud solutions and more secure storage of the information, as it's currently stored in a JSON file
 furthermore the password could be hidden during password creation and log-in, which I sadly forgot in my rush to finish the project.
 Currently Bcrpypt is used for password hashing with a factor of 16, this could be increased to make it harder to crack the code
-However for expediency I was kept at 16, as my laptop took a minute to hash the password, at that point.
+However for expediency it was kept at 16, as my laptop took a minute to hash the password, at that point.
 for decrypting the credentials it uses an initialization factor which is stored in the JSON and an encryption key which isn't stored, as it's created based on the username and password
 this could be made more secure by making use of the password hash or a secret phrase
 
